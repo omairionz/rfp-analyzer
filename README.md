@@ -9,11 +9,12 @@ A command-line and web tool that extracts structured intelligence from federal g
 
 This tool uses a **hybrid extraction approach**, not pure RAG, since different types of RFP data require different extraction approaches.
 
-- **Tier 1: Hard Facts**: Direct LLM extraction over the first ~10 pages. Solicitation numbers, dates, names, NAICS, set-aside, etc., are all included.
-- **Tier 2: Submission Requirements**: RAG-based retrival using ChromaDB. Submission instructions, page limits, and formatting.
-- **Tiers 3 & 4: Evaluation Criteria and Technical Scope**: RAG intended.
+- **Tier 1: Hard Facts**: Direct LLM extraction over the first ~10 pages. Solicitation numbers, dates, names, NAICS, set-aside type, etc., are all included.
+- **Tier 2: Submission Requirements**: RAG-based retrival using ChromaDB. Submission instructions, page limits, formatting, etc., included.
+- **Tier 3: Evaluation Criteria**: 2-pass RAG-based retrival using ChromaDB. Evaluation factors, evaluation criteria, past performance, etc., are included.
+- **Tier 4: Technical Scope**: RAG intended.
 
-All outputs include a confidence score (`high`, `medium`, and `low`) and a `fields_inferred` list for output verification.
+All outputs include a score of `confidence` (`high`, `medium`, and `low`), a `fields_inferred` list for output verification, a `fields_missing` list for extraction performance, and a `model` field for the LLM used.
 
 ## Getting Started
 
@@ -88,7 +89,7 @@ outputs/
 └── Solicitation_Number/
     ├── tier1.json    # Hard facts
     ├── tier2.json    # Submission requirements
-    ├── tier3.json    # Evaluation Criteria (planned)
+    ├── tier3.json    # Evaluation Criteria
     └── tier4.json    # Technical Scope (planned)
 ```
 
