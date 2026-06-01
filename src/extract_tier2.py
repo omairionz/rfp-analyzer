@@ -5,38 +5,50 @@ from langchain_anthropic import ChatAnthropic
 import json
 import re
 
-TIER2_SYSTEM = """
-You are extracting data from a federal government RFP.
-Extract the fields below from the provided text. 
-Return ONLY valid JSON — no commentary, no markdown fences.
-If a field is not present, return null.
-Do not guess. If you're uncertain, set confidence to "low".
+TIER2_SYSTEM_CONTEXT = """
+Return only JSON output - no markdown, no commentary.
+You are the world's best senior Request for Proposal (RFP) analyst at extracting submission requirements, proposal instructions, and formatting.
+Extract the data the fields request from the text below.
+Do not guess. If you are uncertain, set confidence to 'low'. 
+If value is missing, include it in fields_missing and return null.
+If value is inferred, include it in fields_inferred and reduce confidence.
 """
 
-TIER2_PROMPT_SCHEMA = """
+TIER2_PROMPT = """
 Return a JSON object with exactly these fields:
-- page_limit_total (string or null)
-- volume_structure e.g. "Volume I: Technical, Volume II: Past Performance" (string or null)
-- format_requirements with subfields: font, margins, file type (PDF? Word?) (string or null)
-- submission_method (string or null)
-- required_forms (list of strings, e.g. ["SF1449", "SF33"])
-- number_of_copies required (string or null)
-- pre_proposal_conference (string or null)
-- qa_deadline (string or null)
-- step_requirements (null if single-phase solicitation, otherwise object with subfields):
-    - step_1 with subfields: due_date, requirements, evaluation_guidance (all string or null)
-    - step_2 with subfields: due_date, requirements, evaluation_guidance (all string or null)
-    - step_3 with subfields: due_date, requirements, evaluation_guidance (all string or null)
-- confidence ("high", "medium", or "low")
-- fields_inferred (list of field names)
+- page_limit_total: (string or null)
+- volume_structure: (list of strings or null)
+- volume_page_limits: (list of strings or null)
+- format_requirements: (all string or null) subfields: font, font_size, spacing, margins, file_format, naming_convention
+- submission_method: (string or null)
+- submission_email: (string or null)
+- submission_deadline: (string with local time or null) "MM/DD/YYYY HH:MM TZ" format
+- late_submission_policy: (string or null)
+If explicitly stated, extract exact policy
+If missing, include in fields_missing and return null.
+- required_forms: (list of strings or null)
+- required_certifications: (list of strings or null)
+- amendment_acknowledgement_required: (string - "Yes" or "No")
+- signature_required: (string - "Yes" or "No")
+- number_of_copies with subfields - electronic: (number or null), hard_copy: (number or null)
+- pre_proposal_conference with subfields - required: (string) "Yes" or "No", date: (string or null) format: MM/DD/YYYY, location: (string, "virtual", or null)
+- qa_deadline: (string or null) "MM/DD/YYYY HH:MM TZ" format
+- step_requirements: 
+    step_1 (string or null)
+    step_2 (string or null)
+    step_3 (string or null)
+- model: "claude-sonnet-4-5"
+- confidence: "high", "medium", "low"
+- fields_inferred: (list of strings or null)
+- fields_missing: (list of strings or null) fields that are assigned null for any reason. If subfield, label as parent.child (e.g. step_requirements.step_3)
 """
 
 def extract_tier2(text: str) -> dict:
     llm = ChatAnthropic(model="claude-sonnet-4-5", temperature=0)
-    prompt = f"{TIER2_PROMPT_SCHEMA}\n\nDocument Text:\n\n{text}"
+    prompt = f"{TIER2_PROMPT}\n\nDocument Text:\n\n{text}"
 
     response = llm.invoke([
-        SystemMessage(content=TIER2_SYSTEM),
+        SystemMessage(content=TIER2_SYSTEM_CONTEXT),
         HumanMessage(content=prompt)
         ])
     
