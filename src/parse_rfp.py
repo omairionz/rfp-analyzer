@@ -16,7 +16,7 @@ load_dotenv()
 def main():
     generate_database()
 
-def generate_database(rfp_folder: str, force_rebuild=True): # False by default. True - rebuilds DB on every run
+def generate_database(rfp_folder: str, force_rebuild=False): # False by default. True - rebuilds DB on every run
     # joins data_path and chroma-path locations together automatically instaed of typing data/ + RFP-1. 
     chroma_path = os.path.join("chroma-database", rfp_folder)
     data_path = os.path.join("data", rfp_folder) 
@@ -100,10 +100,10 @@ def get_relevant_text(rfp_folder: str) -> str:
     """    
     db = Chroma(persist_directory=chroma_path, embedding_function=OpenAIEmbeddings(model="text-embedding-3-small"))
     print(f"Collection count: {db._collection.count()}") 
-    relevant_chunks = db.similarity_search_with_relevance_scores(query_text, k=10)
+    relevant_chunks = db.similarity_search_with_relevance_scores(query_text, k=20)
     # for doc, score in relevant_chunks:  
        # print(f"Score: {score:.3f} | {doc.page_content[:100]}")
-    if len(relevant_chunks) == 0 or relevant_chunks[0][1] < 0.3:
+    if len(relevant_chunks) == 0 or relevant_chunks[0][1] < 0.2:
         print(f"Unable to find matching results.")
         return 
     results = "\n\n---\n\n".join([doc.page_content for doc, _score in relevant_chunks])

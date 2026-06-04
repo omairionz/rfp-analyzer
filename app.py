@@ -11,9 +11,10 @@ load_dotenv()
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from src.parse_rfp import generate_database, get_first_pages_text, get_relevant_text
+from src.parse_rfp import generate_database, get_first_pages_text, get_relevant_text, find_section_m_pages, tier3_page_content
 from src.extract_tier1 import extract_tier1
 from src.extract_tier2 import extract_tier2
+from src.extract_tier3 import extract_tier3
 
 # ─── PAGE CONFIG ─────────────────────────────────────────────────────────────
 
@@ -28,10 +29,8 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-  /* Import fonts */
   @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
 
-  /* Root color variables */
   :root {
     --bg-primary:    #0d1117;
     --bg-secondary:  #161b22;
@@ -47,23 +46,19 @@ st.markdown("""
     --text-mono:     #79c0ff;
   }
 
-  /* Global background */
   .stApp {
     background-color: var(--bg-primary);
     color: var(--text-primary);
     font-family: 'DM Sans', sans-serif;
   }
 
-  /* Sidebar */
   [data-testid="stSidebar"] {
     background-color: var(--bg-secondary);
     border-right: 1px solid var(--border);
   }
 
-  /* Hide default streamlit header/footer */
   #MainMenu, footer, header { visibility: hidden; }
 
-  /* Main title */
   .rfp-title {
     font-family: 'Space Mono', monospace;
     font-size: 1.6rem;
@@ -76,16 +71,27 @@ st.markdown("""
     margin-bottom: 0.2rem;
   }
 
-  /* Subtitle */
   .rfp-subtitle {
     font-family: 'DM Sans', sans-serif;
     font-size: 0.85rem;
     color: var(--text-secondary);
     letter-spacing: 0.04em;
-    margin-bottom: 1.5rem;
+    margin-bottom: 0.5rem;
   }
 
-  /* Section headers */
+  .meta-line {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    margin-top: 0.2rem;
+  }
+
+  .meta-model {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-mono);
+  }
+
   .section-header {
     font-family: 'Space Mono', monospace;
     font-size: 0.7rem;
@@ -98,7 +104,6 @@ st.markdown("""
     margin: 1.5rem 0 0.8rem 0;
   }
 
-  /* Data cards */
   .data-card {
     background-color: var(--bg-card);
     border: 1px solid var(--border);
@@ -107,7 +112,6 @@ st.markdown("""
     margin-bottom: 0.6rem;
   }
 
-  /* Field label */
   .field-label {
     font-family: 'Space Mono', monospace;
     font-size: 0.65rem;
@@ -115,9 +119,11 @@ st.markdown("""
     text-transform: uppercase;
     letter-spacing: 0.1em;
     margin-bottom: 0.2rem;
+    margin-top: 0.6rem;
   }
 
-  /* Field value */
+  .field-label:first-child { margin-top: 0; }
+
   .field-value {
     font-family: 'DM Sans', sans-serif;
     font-size: 0.95rem;
@@ -125,14 +131,12 @@ st.markdown("""
     font-weight: 500;
   }
 
-  /* Mono value (for codes, numbers, dates) */
   .field-value-mono {
     font-family: 'Space Mono', monospace;
     font-size: 0.85rem;
     color: var(--text-mono);
   }
 
-  /* Null/missing value */
   .field-null {
     font-family: 'Space Mono', monospace;
     font-size: 0.8rem;
@@ -140,12 +144,12 @@ st.markdown("""
     font-style: italic;
   }
 
-  /* Confidence badge */
   .badge-high   { background:#1a3a2a; color:#3fb950; border:1px solid #3fb950; padding:2px 10px; border-radius:20px; font-family:'Space Mono',monospace; font-size:0.7rem; font-weight:700; letter-spacing:0.08em; }
   .badge-medium { background:#2d2a1a; color:#e3b341; border:1px solid #e3b341; padding:2px 10px; border-radius:20px; font-family:'Space Mono',monospace; font-size:0.7rem; font-weight:700; letter-spacing:0.08em; }
   .badge-low    { background:#3a1a1a; color:#f85149; border:1px solid #f85149; padding:2px 10px; border-radius:20px; font-family:'Space Mono',monospace; font-size:0.7rem; font-weight:700; letter-spacing:0.08em; }
+  .badge-yes    { background:#1a3a2a; color:#3fb950; border:1px solid #3fb950; padding:2px 8px; border-radius:4px; font-family:'Space Mono',monospace; font-size:0.65rem; font-weight:700; }
+  .badge-no     { background:#2a1a1a; color:#8b949e; border:1px solid #30363d; padding:2px 8px; border-radius:4px; font-family:'Space Mono',monospace; font-size:0.65rem; font-weight:700; }
 
-  /* Step card */
   .step-card {
     background-color: var(--bg-secondary);
     border: 1px solid var(--border);
@@ -162,32 +166,33 @@ st.markdown("""
     color: var(--amber);
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    margin-bottom: 0.8rem;
+    margin-bottom: 0.6rem;
   }
 
-  /* At-a-glance grid */
-  .glance-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 0.6rem;
-    margin-bottom: 1rem;
-  }
-
-  /* Status bar */
-  .status-bar {
+  .factor-card {
     background-color: var(--bg-secondary);
     border: 1px solid var(--border);
+    border-left: 3px solid var(--text-mono);
     border-radius: 6px;
-    padding: 0.6rem 1rem;
-    font-family: 'Space Mono', monospace;
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    margin-bottom: 1rem;
-    display: flex;
-    gap: 1.5rem;
+    padding: 0.7rem 1rem;
+    margin-bottom: 0.4rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    color: var(--text-primary);
   }
 
-  /* Streamlit button override */
+  .missing-tag {
+    display: inline-block;
+    background: #1a1a2a;
+    color: #8b949e;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    padding: 1px 7px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    margin: 2px 3px 2px 0;
+  }
+
   .stButton > button {
     background-color: var(--amber);
     color: #0d1117;
@@ -207,25 +212,7 @@ st.markdown("""
     color: #0d1117;
   }
 
-  /* File uploader */
-  [data-testid="stFileUploader"] {
-    background-color: var(--bg-card);
-    border: 1px dashed var(--border);
-    border-radius: 6px;
-    padding: 0.5rem;
-  }
-
-  /* Expander */
-  [data-testid="stExpander"] {
-    background-color: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-  }
-
-  /* Divider */
   hr { border-color: var(--border); margin: 1.5rem 0; }
-
-  /* Warning/info boxes */
   .stAlert { border-radius: 6px; }
 </style>
 """, unsafe_allow_html=True)
@@ -234,7 +221,7 @@ st.markdown("""
 # ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 def val(v, mono=False):
-    """Render a field value — shows styled null if missing."""
+    """Convert a value to styled HTML. Returns null placeholder if empty."""
     if v is None or v == "" or v == []:
         return '<span class="field-null">— not found —</span>'
     if isinstance(v, list):
@@ -243,32 +230,49 @@ def val(v, mono=False):
     return f'<span class="{css}">{v}</span>'
 
 
-def field(label, value, mono=False):
-    """Render a labeled field inside a card."""
-    st.markdown(f"""
-    <div>
-      <div class="field-label">{label}</div>
-      <div>{val(value, mono)}</div>
-    </div>
-    """, unsafe_allow_html=True)
+def card(*rows):
+    """
+    Render a single data-card with any number of label/value rows.
+    Each row is a tuple: (label, value) or (label, value, mono=True)
+    All rows go into ONE st.markdown call — no ghost blocks.
+    """
+    inner = ""
+    for row in rows:
+        label = row[0]
+        value = row[1]
+        mono  = row[2] if len(row) > 2 else False
+        inner += f'<div class="field-label">{label}</div><div>{val(value, mono)}</div>'
+    st.markdown(f'<div class="data-card">{inner}</div>', unsafe_allow_html=True)
+
+
+def yn_badge(v):
+    """Green YES / grey NO badge."""
+    if not v:
+        return '<span class="field-null">— not found —</span>'
+    css = "badge-yes" if str(v).strip().lower() == "yes" else "badge-no"
+    return f'<span class="{css}">{str(v).upper()}</span>'
 
 
 def confidence_badge(level):
-    """Render a green/yellow/red confidence badge."""
     if not level:
         return ""
-    css = f"badge-{level.lower()}"
-    return f'<span class="{css}">{level.upper()}</span>'
+    return f'<span class="badge-{level.lower()}">{level.upper()}</span>'
 
 
-def save_results(t1, t2, sol_number):
-    """Save both tier JSONs to outputs folder."""
+def missing_tags(fields):
+    if not fields:
+        return ""
+    tags = "".join(f'<span class="missing-tag">{f}</span>' for f in fields)
+    return f'<div style="margin-top:0.5rem;">{tags}</div>'
+
+
+def save_results(t1, t2, t3, sol_number):
     folder = os.path.join("outputs", sol_number)
     os.makedirs(folder, exist_ok=True)
-    with open(os.path.join(folder, "tier1.json"), "w") as f:
-        json.dump(t1, f, indent=2)
-    with open(os.path.join(folder, "tier2.json"), "w") as f:
-        json.dump(t2, f, indent=2)
+    for name, data in [("tier1", t1), ("tier2", t2), ("tier3", t3)]:
+        if data:
+            with open(os.path.join(folder, f"{name}.json"), "w") as f:
+                json.dump(data, f, indent=2)
 
 
 # ─── SIDEBAR ─────────────────────────────────────────────────────────────────
@@ -276,10 +280,8 @@ def save_results(t1, t2, sol_number):
 with st.sidebar:
     st.markdown('<div class="rfp-title">RFP Analyzer</div>', unsafe_allow_html=True)
     st.markdown('<div class="rfp-subtitle">GovCon Intelligence Tool · v0.1</div>', unsafe_allow_html=True)
-
     st.markdown("---")
 
-    # RFP folder selector
     rfp_folders = []
     if os.path.exists("data"):
         rfp_folders = [f for f in os.listdir("data") if os.path.isdir(os.path.join("data", f))]
@@ -295,76 +297,68 @@ with st.sidebar:
         selected_folder = None
 
     st.markdown("---")
-
-    # Force rebuild toggle
-    force_rebuild = st.toggle(
-        "Force DB Rebuild",
-        value=False,
-        help="Wipe and rebuild ChromaDB. Use when you add new PDFs."
-    )
-
+    force_rebuild = st.toggle("Force DB Rebuild", value=False,
+        help="Wipe and rebuild ChromaDB. Use when you add new PDFs.")
     st.markdown("---")
-
-    # Run button
     run = st.button("⚡ ANALYZE RFP")
-
     st.markdown("---")
 
-    # Previously saved outputs
     st.markdown('<div class="field-label">Saved Outputs</div>', unsafe_allow_html=True)
     if os.path.exists("outputs"):
         saved = os.listdir("outputs")
         if saved:
             for s in saved:
-                st.markdown(f'<div class="field-value" style="font-size:0.8rem;">📁 {s}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="field-value" style="font-size:0.8rem;">📁 {s}</div>',
+                    unsafe_allow_html=True)
         else:
-            st.markdown('<div class="field-null">None yet</div>', unsafe_allow_html=True)
+            st.markdown('<span class="field-null">None yet</span>', unsafe_allow_html=True)
 
 
 # ─── SESSION STATE ────────────────────────────────────────────────────────────
 
-# Session state persists data between Streamlit reruns
-# Without this, results would disappear every time the user clicks anything
-if "tier1" not in st.session_state:
-    st.session_state.tier1 = None
-if "tier2" not in st.session_state:
-    st.session_state.tier2 = None
-if "error" not in st.session_state:
-    st.session_state.error = None
+for key in ["tier1", "tier2", "tier3", "error"]:
+    if key not in st.session_state:
+        st.session_state[key] = None
 
 
 # ─── RUN PIPELINE ────────────────────────────────────────────────────────────
 
 if run and selected_folder:
+    documents = None
+
     with st.spinner("Loading and embedding documents..."):
         try:
             documents = generate_database(selected_folder, force_rebuild=force_rebuild)
         except Exception as e:
             st.session_state.error = f"Failed to load documents: {e}"
-            documents = None
 
     if documents:
         with st.spinner("Running Tier 1 extraction..."):
             try:
-                text = get_first_pages_text(documents)
-                st.session_state.tier1 = extract_tier1(text)
+                st.session_state.tier1 = extract_tier1(get_first_pages_text(documents))
             except Exception as e:
-                st.session_state.error = f"Tier 1 extraction failed: {e}"
+                st.session_state.error = f"Tier 1 failed: {e}"
 
         with st.spinner("Running Tier 2 extraction..."):
             try:
-                text2 = get_relevant_text(selected_folder)
-                st.session_state.tier2 = extract_tier2(text2)
+                st.session_state.tier2 = extract_tier2(get_relevant_text(selected_folder))
             except Exception as e:
-                st.session_state.error = f"Tier 2 extraction failed: {e}"
+                st.session_state.error = f"Tier 2 failed: {e}"
 
-        if st.session_state.tier1 and st.session_state.tier2:
+        with st.spinner("Running Tier 3 extraction..."):
+            try:
+                pages = find_section_m_pages(documents, selected_folder)
+                st.session_state.tier3 = extract_tier3(tier3_page_content(documents, pages)) if pages else None
+            except Exception as e:
+                st.session_state.error = f"Tier 3 failed: {e}"
+
+        if st.session_state.tier1:
             sol = st.session_state.tier1.get("solicitation_number", selected_folder)
-            save_results(st.session_state.tier1, st.session_state.tier2, sol)
+            save_results(st.session_state.tier1, st.session_state.tier2, st.session_state.tier3, sol)
             st.session_state.error = None
 
 
-# ─── ERROR DISPLAY ────────────────────────────────────────────────────────────
+# ─── ERROR ────────────────────────────────────────────────────────────────────
 
 if st.session_state.error:
     st.error(st.session_state.error)
@@ -374,120 +368,109 @@ if st.session_state.error:
 
 t1 = st.session_state.tier1
 t2 = st.session_state.tier2
+t3 = st.session_state.tier3
 
 if not t1:
-    # Empty state — shown before any analysis is run
     st.markdown("""
-    <div style="text-align:center; padding: 5rem 2rem;">
-      <div style="font-family:'Space Mono',monospace; font-size:3rem; color:#30363d;">◈</div>
-      <div style="font-family:'Space Mono',monospace; font-size:0.9rem; color:#8b949e; margin-top:1rem; letter-spacing:0.1em;">
+    <div style="text-align:center; padding:5rem 2rem;">
+      <div style="font-family:'Space Mono',monospace;font-size:3rem;color:#30363d;">◈</div>
+      <div style="font-family:'Space Mono',monospace;font-size:0.9rem;color:#8b949e;margin-top:1rem;letter-spacing:0.1em;">
         SELECT AN RFP FOLDER AND CLICK ANALYZE
       </div>
-      <div style="font-family:'DM Sans',sans-serif; font-size:0.8rem; color:#8b949e; margin-top:0.5rem;">
+      <div style="font-family:'DM Sans',sans-serif;font-size:0.8rem;color:#8b949e;margin-top:0.5rem;">
         Results will appear here
       </div>
     </div>
     """, unsafe_allow_html=True)
 
 else:
-    # ── Header ──────────────────────────────────────────────────────────────
     sol_number = t1.get("solicitation_number", "—")
     confidence = t1.get("confidence", "—")
+    model      = t1.get("model", "—")
 
-    col_title, col_badge = st.columns([5, 1])
+    # ── Header ───────────────────────────────────────────────────────────────
+    col_title, col_meta = st.columns([5, 1])
     with col_title:
         st.markdown(f'<div class="rfp-title">{sol_number}</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="rfp-subtitle">{t1.get("title", "")}</div>', unsafe_allow_html=True)
-    with col_badge:
+    with col_meta:
+        # Confidence badge + model — both metadata, both in the top-right corner
         st.markdown(f"""
         <div style="text-align:right; padding-top:0.5rem;">
           <div class="field-label">Confidence</div>
           {confidence_badge(confidence)}
+          <div class="field-label" style="margin-top:0.6rem;">Model</div>
+          <div class="meta-model">{model}</div>
         </div>
         """, unsafe_allow_html=True)
 
     # ── Tabs ─────────────────────────────────────────────────────────────────
-    # Tabs let the user switch between views without scrolling forever
-    tab1, tab2, tab3 = st.tabs(["📋  AT A GLANCE", "📦  SUBMISSION", "{ }  RAW JSON"])
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📋  AT A GLANCE",
+        "📦  SUBMISSION",
+        "⚖️  EVALUATION",
+        "{ }  RAW JSON"
+    ])
 
-    # ════════════════════════════════════════════════════════════════════════
+    # ══════════════════════════════════════════════════════════════════════════
     # TAB 1 — AT A GLANCE (Tier 1)
-    # ════════════════════════════════════════════════════════════════════════
+    # ══════════════════════════════════════════════════════════════════════════
     with tab1:
-
-        # Row 1: key facts in columns
         st.markdown('<div class="section-header">Key Facts</div>', unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
 
         with c1:
-            st.markdown('<div class="data-card">', unsafe_allow_html=True)
-            field("Agency", t1.get("agency"))
-            st.markdown("</div>", unsafe_allow_html=True)
-
-            st.markdown('<div class="data-card">', unsafe_allow_html=True)
-            field("Set-Aside", t1.get("set_aside_type"))
-            st.markdown("</div>", unsafe_allow_html=True)
-
-            st.markdown('<div class="data-card">', unsafe_allow_html=True)
-            field("NAICS Codes", t1.get("naics_codes"), mono=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+            card(("Agency", t1.get("agency")))
+            card(("Set-Aside", t1.get("set_aside_type")))
+            card(("Notice Type", t1.get("notice_type")))
+            card(("NAICS Codes", t1.get("naics_codes"), True))
 
         with c2:
-            st.markdown('<div class="data-card">', unsafe_allow_html=True)
-            field("Sub-Agency / Office", t1.get("sub_agency_office"))
-            st.markdown("</div>", unsafe_allow_html=True)
-
-            st.markdown('<div class="data-card">', unsafe_allow_html=True)
-            field("Contract Type", t1.get("contract_type"))
-            st.markdown("</div>", unsafe_allow_html=True)
-
-            st.markdown('<div class="data-card">', unsafe_allow_html=True)
-            field("PSC Codes", t1.get("psc_codes"), mono=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+            card(("Sub-Agency / Office(s)", t1.get("sub_agency_offices")))
+            card(("Contract Type", t1.get("contract_type")))
+            card(("Procurement Type", t1.get("procurement_type")))
+            card(("PSC Codes", t1.get("psc_codes"), True))
 
         with c3:
-            st.markdown('<div class="data-card">', unsafe_allow_html=True)
-            field("Due Date", t1.get("due_date"), mono=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+            card(("Due Date", t1.get("due_date"), True))
+            card(("Period of Performance", t1.get("period_of_performance"), True))
 
-            st.markdown('<div class="data-card">', unsafe_allow_html=True)
-            field("Period of Performance", t1.get("period_of_performance"), mono=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-
-            # Contract value — show range if both present
+            # Contract ceiling — format as dollar amount
             v_min = t1.get("estimated_value_min")
             v_max = t1.get("estimated_value_max")
             if v_max:
                 v_str = f"${v_max:,.0f}" if not v_min else f"${v_min:,.0f} – ${v_max:,.0f}"
             else:
                 v_str = None
-            st.markdown('<div class="data-card">', unsafe_allow_html=True)
-            field("Contract Ceiling", v_str, mono=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+            card(("Contract Ceiling", v_str, True))
 
-        # Row 2: place of performance + CO
         st.markdown('<div class="section-header">Location & Contact</div>', unsafe_allow_html=True)
         c4, c5 = st.columns(2)
 
         with c4:
-            st.markdown('<div class="data-card">', unsafe_allow_html=True)
-            field("Place of Performance", t1.get("place_of_performance"))
-            st.markdown("</div>", unsafe_allow_html=True)
+            card(("Place of Performance", t1.get("place_of_performance")))
 
         with c5:
-            co = t1.get("contracting_officer", {})
-            st.markdown('<div class="data-card">', unsafe_allow_html=True)
-            field("Contracting Officer", co.get("name"))
-            field("Email", co.get("email"), mono=True)
-            field("Phone", co.get("phone"), mono=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+            co = t1.get("contracting_officer") or {}
+            # All three CO subfields in one card — one st.markdown call, no ghost blocks
+            card(
+                ("Contracting Officer", co.get("name")),
+                ("Email", co.get("email"), True),
+                ("Phone", co.get("phone"), True),
+            )
 
-        # Inferred fields warning
-        inferred = t1.get("fields_inferred", [])
-        if inferred:
-            st.warning(f"⚠ The following fields were inferred (verify manually): {', '.join(inferred)}")
+        # Missing + inferred
+        missing1  = t1.get("fields_missing", [])
+        inferred1 = t1.get("fields_inferred", [])
+        if missing1 or inferred1:
+            st.markdown("---")
+        if missing1:
+            st.markdown(
+                f'<div class="field-label">Missing Fields</div>{missing_tags(missing1)}',
+                unsafe_allow_html=True)
+        if inferred1:
+            st.warning(f"⚠ Inferred (verify manually): {', '.join(inferred1)}")
 
-        # Download button for Tier 1 JSON
         st.markdown("---")
         st.download_button(
             label="⬇ DOWNLOAD TIER 1 JSON",
@@ -496,43 +479,48 @@ else:
             mime="application/json"
         )
 
-    # ════════════════════════════════════════════════════════════════════════
+    # ══════════════════════════════════════════════════════════════════════════
     # TAB 2 — SUBMISSION REQUIREMENTS (Tier 2)
-    # ════════════════════════════════════════════════════════════════════════
+    # ══════════════════════════════════════════════════════════════════════════
     with tab2:
         if not t2:
             st.info("Tier 2 data not available.")
         else:
-            # Submission basics
             st.markdown('<div class="section-header">Submission Basics</div>', unsafe_allow_html=True)
             c6, c7, c8 = st.columns(3)
 
             with c6:
-                st.markdown('<div class="data-card">', unsafe_allow_html=True)
-                field("Page Limit", t2.get("page_limit_total"), mono=True)
-                st.markdown("</div>", unsafe_allow_html=True)
-
-                st.markdown('<div class="data-card">', unsafe_allow_html=True)
-                field("Submission Method", t2.get("submission_method"))
-                st.markdown("</div>", unsafe_allow_html=True)
+                card(("Page Limit (Total)", t2.get("page_limit_total"), True))
+                card(("Submission Method", t2.get("submission_method")))
+                card(("Submission Email", t2.get("submission_email"), True))
+                card(("Submission Deadline", t2.get("submission_deadline"), True))
 
             with c7:
-                st.markdown('<div class="data-card">', unsafe_allow_html=True)
-                field("Volume Structure", t2.get("volume_structure"))
-                st.markdown("</div>", unsafe_allow_html=True)
-
-                st.markdown('<div class="data-card">', unsafe_allow_html=True)
-                field("Required Forms", t2.get("required_forms"))
-                st.markdown("</div>", unsafe_allow_html=True)
+                card(("Volume Structure", t2.get("volume_structure")))
+                card(("Volume Page Limits", t2.get("volume_page_limits")))
+                card(("Required Forms", t2.get("required_forms")))
+                card(("Required Certifications", t2.get("required_certifications")))
 
             with c8:
-                st.markdown('<div class="data-card">', unsafe_allow_html=True)
-                field("Q&A Deadline", t2.get("qa_deadline"), mono=True)
-                st.markdown("</div>", unsafe_allow_html=True)
+                card(("Q&A Deadline", t2.get("qa_deadline"), True))
+                card(("Late Submission Policy", t2.get("late_submission_policy")))
 
-                st.markdown('<div class="data-card">', unsafe_allow_html=True)
-                field("Number of Copies", t2.get("number_of_copies"), mono=True)
-                st.markdown("</div>", unsafe_allow_html=True)
+                # Copies — electronic + hard copy in one card
+                copies = t2.get("number_of_copies") or {}
+                card(
+                    ("Copies — Electronic", copies.get("electronic"), True),
+                    ("Copies — Hard Copy",  copies.get("hard_copy"),  True),
+                )
+
+                # Yes/No flags — one card, two rows, inline HTML for badges
+                st.markdown(f"""
+                <div class="data-card">
+                  <div class="field-label">Amendment Acknowledgement</div>
+                  <div>{yn_badge(t2.get("amendment_acknowledgement_required"))}</div>
+                  <div class="field-label">Signature Required</div>
+                  <div>{yn_badge(t2.get("signature_required"))}</div>
+                </div>
+                """, unsafe_allow_html=True)
 
             # Format requirements
             fmt = t2.get("format_requirements")
@@ -540,37 +528,52 @@ else:
                 st.markdown('<div class="section-header">Format Requirements</div>', unsafe_allow_html=True)
                 cf1, cf2, cf3 = st.columns(3)
                 with cf1:
-                    st.markdown('<div class="data-card">', unsafe_allow_html=True)
-                    field("Font", fmt.get("font"))
-                    st.markdown("</div>", unsafe_allow_html=True)
+                    card(("Font", fmt.get("font")), ("Font Size", fmt.get("font_size"), True))
                 with cf2:
-                    st.markdown('<div class="data-card">', unsafe_allow_html=True)
-                    field("Margins", fmt.get("margins"))
-                    st.markdown("</div>", unsafe_allow_html=True)
+                    card(("Spacing", fmt.get("spacing")), ("Margins", fmt.get("margins")))
                 with cf3:
-                    st.markdown('<div class="data-card">', unsafe_allow_html=True)
-                    field("File Type", fmt.get("file_type"))
-                    st.markdown("</div>", unsafe_allow_html=True)
+                    card(("File Format", fmt.get("file_format")), ("Naming Convention", fmt.get("naming_convention"), True))
+
+            # Pre-proposal conference
+            conf = t2.get("pre_proposal_conference")
+            if conf and isinstance(conf, dict):
+                st.markdown('<div class="section-header">Pre-Proposal Conference</div>', unsafe_allow_html=True)
+                cp1, cp2, cp3 = st.columns(3)
+                with cp1:
+                    st.markdown(f"""
+                    <div class="data-card">
+                      <div class="field-label">Required</div>
+                      <div>{yn_badge(conf.get("required"))}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with cp2:
+                    card(("Date", conf.get("date"), True))
+                with cp3:
+                    card(("Location", conf.get("location")))
 
             # Step requirements
             steps = t2.get("step_requirements")
-            if steps:
+            if steps and isinstance(steps, dict):
                 st.markdown('<div class="section-header">Multiphase Step Requirements</div>', unsafe_allow_html=True)
                 for step_key, step_data in steps.items():
                     if step_data:
-                        st.markdown(f'<div class="step-card">', unsafe_allow_html=True)
-                        st.markdown(f'<div class="step-title">{step_key.replace("_", " ").upper()}</div>', unsafe_allow_html=True)
-                        field("Due Date", step_data.get("due_date"), mono=True)
-                        st.markdown("<br>", unsafe_allow_html=True)
-                        field("Requirements", step_data.get("requirements"))
-                        st.markdown("<br>", unsafe_allow_html=True)
-                        field("Evaluation Guidance", step_data.get("evaluation_guidance"))
-                        st.markdown("</div>", unsafe_allow_html=True)
+                        st.markdown(f"""
+                        <div class="step-card">
+                          <div class="step-title">{step_key.replace("_", " ").upper()}</div>
+                          <div class="field-value">{step_data}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
 
-            # Inferred fields warning
+            missing2  = t2.get("fields_missing", [])
             inferred2 = t2.get("fields_inferred", [])
+            if missing2 or inferred2:
+                st.markdown("---")
+            if missing2:
+                st.markdown(
+                    f'<div class="field-label">Missing Fields</div>{missing_tags(missing2)}',
+                    unsafe_allow_html=True)
             if inferred2:
-                st.warning(f"⚠ Inferred fields (verify manually): {', '.join(inferred2)}")
+                st.warning(f"⚠ Inferred (verify manually): {', '.join(inferred2)}")
 
             st.markdown("---")
             st.download_button(
@@ -580,12 +583,87 @@ else:
                 mime="application/json"
             )
 
-    # ════════════════════════════════════════════════════════════════════════
-    # TAB 3 — RAW JSON
-    # ════════════════════════════════════════════════════════════════════════
+    # ══════════════════════════════════════════════════════════════════════════
+    # TAB 3 — EVALUATION CRITERIA (Tier 3)
+    # ══════════════════════════════════════════════════════════════════════════
     with tab3:
+        if not t3:
+            st.info("Tier 3 data not available. Section M may not have been found in this document.")
+        else:
+            st.markdown('<div class="section-header">Evaluation Approach</div>', unsafe_allow_html=True)
+            ea1, ea2 = st.columns(2)
+
+            with ea1:
+                card(("Evaluation Criteria", t3.get("evaluation_criteria")))
+                card(("Factor Relative Importance", t3.get("factor_relative_importance")))
+                card(("Factor Weights", t3.get("factor_weights"), True))
+
+            with ea2:
+                # Yes/No badges for boolean fields
+                oral = t3.get("oral_presentations_or_demonstrations")
+                oral_html = yn_badge(oral) if oral in ["Yes", "No"] else val(oral)
+                st.markdown(f"""
+                <div class="data-card">
+                  <div class="field-label">Past Performance Required</div>
+                  <div>{yn_badge(t3.get("past_performance_required"))}</div>
+                  <div class="field-label">Oral Presentations / Demos</div>
+                  <div>{oral_html}</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                card(("Past Performance Reference Count", t3.get("past_performance_reference_count"), True))
+                card(("Past Performance Requirements", t3.get("past_performance_requirements")))
+
+            # Evaluation factors — numbered list
+            factors = t3.get("evaluation_factors")
+            if factors:
+                st.markdown('<div class="section-header">Evaluation Factors (In Order of Importance)</div>',
+                    unsafe_allow_html=True)
+                for i, factor in enumerate(factors, 1):
+                    st.markdown(f"""
+                    <div class="factor-card">
+                      <span style="color:var(--text-secondary);font-family:'Space Mono',monospace;font-size:0.7rem;">#{i}</span>
+                      &nbsp; {factor}
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            # Clearances + certifications
+            st.markdown('<div class="section-header">Requirements & Qualifications</div>', unsafe_allow_html=True)
+            rq1, rq2 = st.columns(2)
+            with rq1:
+                card(("Clearance Requirements", t3.get("clearance_requirements")))
+            with rq2:
+                card(("Certifications / Qualifications Required", t3.get("certifications_or_qualifications_required")))
+
+            missing3  = t3.get("fields_missing", [])
+            inferred3 = t3.get("fields_inferred", [])
+            if missing3 or inferred3:
+                st.markdown("---")
+            if missing3:
+                st.markdown(
+                    f'<div class="field-label">Missing Fields</div>{missing_tags(missing3)}',
+                    unsafe_allow_html=True)
+            if inferred3:
+                st.warning(f"⚠ Inferred (verify manually): {', '.join(inferred3)}")
+
+            st.markdown("---")
+            st.download_button(
+                label="⬇ DOWNLOAD TIER 3 JSON",
+                data=json.dumps(t3, indent=2),
+                file_name=f"{sol_number}_tier3.json",
+                mime="application/json"
+            )
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # TAB 4 — RAW JSON
+    # ══════════════════════════════════════════════════════════════════════════
+    with tab4:
         st.markdown('<div class="section-header">Tier 1 — Hard Facts</div>', unsafe_allow_html=True)
         st.json(t1)
 
         st.markdown('<div class="section-header">Tier 2 — Submission Requirements</div>', unsafe_allow_html=True)
         st.json(t2)
+
+        if t3:
+            st.markdown('<div class="section-header">Tier 3 — Evaluation Criteria</div>', unsafe_allow_html=True)
+            st.json(t3)
