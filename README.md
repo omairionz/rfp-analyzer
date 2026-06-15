@@ -4,6 +4,8 @@
 
 A command-line and web tool that extracts structured intelligence from federal government `Request for Proposals (RFPs)`, turning a 60-page solicitation into a one-page debrief.
 
+Here is a [demo.](https://youtu.be/6PNAc1vN_hM)
+
 ---
 ## Architecture
 
