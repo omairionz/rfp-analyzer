@@ -79,7 +79,7 @@ streamlit run app.py
 Opens a browser interface at `localhost:8501`. Select an RFP folder from the sidebar, toggle force-rebuild if you've added new PDFs, and click **Analyze**.
 
 > [!WARNING]
-> The prompts used in this system are proprietary and not available for public distribution.
+> Proprietary prompt templates and production configurations have been excluded from this public repository.
 
 ## Output
 
