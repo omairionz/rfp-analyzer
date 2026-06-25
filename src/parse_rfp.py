@@ -17,7 +17,7 @@ def main():
     generate_database()
 
 def generate_database(rfp_folder: str, force_rebuild=False): # False by default. True - rebuilds DB on every run
-    # joins data_path and chroma-path locations together automatically instaed of typing data/ + RFP-1. 
+    # joins data_path and chroma-path locations together automatically instead of typing data/ + RFP-1. 
     chroma_path = os.path.join("chroma-database", rfp_folder)
     data_path = os.path.join("data", rfp_folder) 
     # checks if CHROMA_PATH exists before running --> saves embedding money
@@ -32,7 +32,7 @@ def generate_database(rfp_folder: str, force_rebuild=False): # False by default.
     save_to_chroma(chunks, rfp_folder)
     return documents
 
-def load_documents(data_path: str): # this extracts PDF text from ONE FOLDER only i.e data/RFP-1
+def load_documents(data_path: str): # this extracts PDF text from ONE FOLDER only, i.e., data/RFP-1
     documents = [] # creates a list where PDF pages will go
     for pdf_path in glob_module.glob(os.path.join(data_path, "*.pdf")): # loops through list of files of data_path/*pdf one at a time; glob_modul... find every file on laptop with data_path/*pdf specification
         with pdfplumber.open(pdf_path) as pdf: # opens PDF file using pdfplumber; each pdf object represents one document
@@ -80,23 +80,7 @@ def get_first_pages_text(documents: list[Document], max_chars: int = 18000) -> s
 def get_relevant_text(rfp_folder: str) -> str:
     chroma_path = os.path.join("chroma-database", rfp_folder)
     query_text = """
-    proposal instructions to offerors.
-    submission requirements.
-    proposal preparation instructions.
-    section l instructions.
-    offerors shall submit.
-    page limitations.
-    volume structure.
-    formatting requirements.
-    font size margins spacing.
-    required forms and certifications.
-    proposal due date.
-    submission email or portal.
-    pre-proposal conference.
-    questions due.
-    late proposal instructions.
-    electronic copies hard copies.
-    step 1 step 2 proposal submission.
+    FILL HERE
     """    
     db = Chroma(persist_directory=chroma_path, embedding_function=OpenAIEmbeddings(model="text-embedding-3-small"))
     print(f"Collection count: {db._collection.count()}") 
@@ -114,22 +98,7 @@ def find_section_m_pages(documents: list[Document], rfp_folder: str):
     page_numbers = []
     chroma_path = os.path.join("chroma-database", rfp_folder)
     query_text = """
-    Section M evaluation factors for award.
-    Evaluation criteria.
-    Basis for award.
-    Government will evaluate proposals.
-    Award will be made to the offeror.
-    Best value tradeoff.
-    Lowest price technically acceptable.
-    Evaluation factors and subfactors.
-    Technical factor.
-    Past performance factor.
-    Price evaluation.
-    Relative importance of factors.
-    Technical is more important than price.
-    Key personnel evaluation.
-    Corporate experience.
-    Offerors will be evaluated.
+    FILL HERE
     """
     db = Chroma(persist_directory=chroma_path, embedding_function=OpenAIEmbeddings(model="text-embedding-3-small"))
     relevant_chunks = db.similarity_search_with_relevance_scores(query_text, k=10)
