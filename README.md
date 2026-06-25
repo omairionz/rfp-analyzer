@@ -78,6 +78,9 @@ streamlit run app.py
 ```
 Opens a browser interface at `localhost:8501`. Select an RFP folder from the sidebar, toggle force-rebuild if you've added new PDFs, and click **Analyze**.
 
+> [!WARNING]
+> The prompts used in this system are proprietary and not available for public distribution. Please use your own prompts for testing purposes.
+
 ## Output
 
 PDF input is processed by the LLM and is given `.json` outputs, all organized inside a dedicated `outputs` folder.
